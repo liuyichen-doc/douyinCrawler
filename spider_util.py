@@ -1,12 +1,15 @@
+from operator import imod
 import random
 import re
 import time
+import os
 
+from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from lxml import etree
-
+from selenium.webdriver.chrome.options import Options
 
 video_regex = r"^https://www.douyin.com/video/(.*)(\?.*)?$"
 
@@ -129,6 +132,21 @@ def get_lxml_etree(browser):
 
 def get_comment_info_by_lxml(root):
 
+    ####
+    ####
+    ###
+    ##
+    #
+    ####新建一个driver进行子页面抖音号爬取
+    file_path = os.path.dirname(__file__)
+    chrome_driver_path = file_path + '/chromedriver.exe'
+    chrome_options = Options()
+    chrome_options.add_argument('--disable-gpu')
+    # chrome_options.add_argument('--headless')
+    # chrome_options.add_argument('--no-sandbox')
+    subbrower = webdriver.Chrome(executable_path=chrome_driver_path, options=chrome_options)
+    subbrower.maximize_window()
+    
     # root:      //*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div/div[4]/div[12]
     # time:   	 //*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div/div[4]/div[12]/div/div[2]/div[1]/div[2]/div[1]/p
     # praise: 	 //*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div/div[4]/div[12]/div/div[2]/div[1]/div[3]/div/p/span
@@ -143,6 +161,7 @@ def get_comment_info_by_lxml(root):
     praise_relative_xpath = ".//div[@class='rJFDwdFI']/div/p/span"
     comment_time_relative_xpath = "div/div[2]/div[1]/div[2]/div[1]/p"
     comment_and_img_relative_xpath=".//p[@class='a9uirtCT']/span/span/span/span/span/span/*"
+    user_id = "//span[@class='kbjj_psh']"
     #评论从1开始标号
     
     rise_id = 1
@@ -186,6 +205,14 @@ def get_comment_info_by_lxml(root):
                 main_page=main_page[2:]
             print(f'主页: {main_page}')
             comment_info["main_page"] = main_page
+            #get sub-commment's user_id
+            # subbrower.get("https://" + main_page)
+            # subhtml = get_lxml_etree(subbrower)
+            # idlists = subhtml.xpath(user_id)
+            # if idlists is not None and len(idlists) != 0:
+            #     comment_info["user_id"] = idlists[0].text
+            #     print(idlists[0].text)
+            
 
         comment_time_list = comment_obj.xpath(comment_time_relative_xpath)
         if comment_time_list is not None and len(comment_time_list) != 0:
@@ -256,14 +283,18 @@ def get_comment_info_by_lxml(root):
         ## 多级评论共层，指向回复人id或者其他标识
         ### 
         ##        获取子评论 div 【pre,[se,tr...]】
-        sub_comment_info = []
+        
+        
+        
+        ####
+        sub_comment_info = {}
         sub_comments_origin = comment_obj.xpath(comment_hilev_relative_xpath)   
         
         
         for sub_comment in sub_comments_origin:
             #标记回复对象是否是第一评论
             flag = 0 
-            sub_comment_info["sub_comments"]=[]
+            
             #子评论人username
             sub_name = sub_comment.xpath(comment_hilev_name_relative_xpath)
             if sub_name is not None and len(sub_name) != 0:
@@ -282,10 +313,15 @@ def get_comment_info_by_lxml(root):
                     main_page=main_page[2:]
                 print(f'sub主页: {main_page}')
                 sub_comment_info["main_page"] = main_page
-                #回复对象不是第一级
-                if len(sub_main_page) == 2:
-                    flag = 1
-                    call_back_page = sub_main_page[1]
+                subbrower.get(main_page)
+                # subhtml = get_lxml_etree(subbrower)
+                # subidlists = subhtml.xpath(user_id)
+                # if idlists is not None and len(subidlists) != 0:
+                #     sub_comment_info["user_id"] = subidlists[0].text
+                # #回复对象不是第一级
+                # if len(sub_main_page) == 2:
+                #     flag = 1
+                #     call_back_page = sub_main_page[1]
                     
                     
             #子评论的时间
@@ -317,6 +353,7 @@ def get_comment_info_by_lxml(root):
                     sub_comment_info["comment_text"] = sub_comment_info["comment_text"]  + cur
                     
             sub_comment_info["comment_id"] = rise_id
+            sub_comment_info["sub_comments"]=[]
             if flag == 0:
                 comment_info["sub_comments"].append(rise_id)
             else:
@@ -374,3 +411,12 @@ def get_comment_info_by_selenium(browser: WebDriver, index):
     return comment_info
 
 
+# def get_cookies(browser: WebDriver):
+#     driver = browser.Chrome()
+#     driver.get('https://www.douyin.com/')
+#     driver.maximize_window()
+#     time.sleep(1)
+#     # 获取cookies
+#     with open('cookies.txt', 'w') as f:
+#         f.write(json.dumps(driver.get_cookies()))
+#     f.close()

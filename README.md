@@ -25,3 +25,5 @@ display.start()
 display.stop()
 ```
 
+存在问题：
+1，抖音cookies的设置有问题，不能完成登录设置

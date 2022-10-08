@@ -80,7 +80,25 @@ def save_searched_video_list_data(browser: WebDriver):
         # print(video_list)
     #test for single meta save
     # video_url="https://www.douyin.com/video/7147171499273735460"
-    video_url="https://www.douyin.com/video/7150832479786503463"
+    browser.get('https://www.douyin.com/')
+    browser.maximize_window()
+    time.sleep(1)
+    # 获取cookies
+    with open('cookies.txt', 'w') as f:
+        f.write(json.dumps(browser.get_cookies()))
+    f.close()
+    # 加载已保存cookies
+    with open('cookies.txt', 'r') as f:
+        cookies_list = json.load(f)
+        for cookie in cookies_list:
+            if 'expiry' in cookie:
+                del cookie['expiry']
+            browser.add_cookie(cookie)
+    time.sleep(1)
+    browser.refresh()
+    
+    video_url="https://www.douyin.com/video/7128976477562883368"
+    
     video_id = spider_util.get_video_id_from_url(video_url)
     video_meta_file_path = f"{file_save_path}/work/{video_id}/metadata.json"
     video_comment_file_path = f"{file_save_path}/work/{video_id}/comment_list.json"
