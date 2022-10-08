@@ -211,7 +211,7 @@ class DouyinDownloader:
         video_title_pattern = r'<title>(.*?) - 抖音</title>'
         video_title_str = re.findall(video_title_pattern, soup_data)
         if len(video_title_str) == 0:
-            print("title not found: ", soup_data)
+            # print("title not found: ", soup_data)
             return real_video_url, ''
             # print('real_video_url: %s', real_video_url)
         # print('video title: %s', video_title_str)
@@ -219,6 +219,7 @@ class DouyinDownloader:
 
     def download_note_in_video_page(self, soup_data, user_data_path, video_id):
         real_note_url_pattern = r'<img class="V5BLJkWV" src="(.*?)"'
+        
         real_note_url_strs = re.findall(real_note_url_pattern, soup_data)
         real_note_urls = []
         print(real_note_url_strs)
@@ -239,11 +240,15 @@ class DouyinDownloader:
         page_source1 = self.web_browser.get_main_page_source(note_url)
         # time.sleep(2)
         # self.web_browser.close_nonsense_window_by_class('dy-account-close')
-        soup_data = str(BeautifulSoup(page_source1, 'html.parser'))
-        soup_data=soup_data.replace(u'\xa0',u' ')
-        print('note_page',soup_data)
-        real_note_url_pattern = r'<img class="V5BLJkWV" src="(.*?)"'
-        real_note_url_strs = re.findall(real_note_url_pattern, soup_data)
+        notes = spider_util.get_lxml_etree(self.web_browser.browser)
+        note_xpath = "//img[@class='V5BLJkWV']/@src"
+        # soup_data = str(BeautifulSoup(page_source1, 'html.parser'))
+        # soup_data=soup_data.replace(u'\xa0',u' ')
+        # print('note_page',soup_data)
+        real_note_url_strs = notes.xpath(note_xpath)
+        
+        # real_note_url_pattern = r'<img class="V5BLJkWV" src="(.*?)"'
+        # real_note_url_strs = re.findall(real_note_url_pattern, soup_data)
         real_note_urls = []
         print('',real_note_url_strs)
         for i in range(len(real_note_url_strs)):
@@ -369,7 +374,7 @@ class DouyinDownloader:
         user_name_pattern = r'抖音号：(.*?)</span>'
         user_name = re.findall(user_name_pattern, str_data)
         if len(user_name) == 0:
-            print("用户名字为空",str_data)
+            print("用户名字为空")
         # print('user_name: ', user_name[0])
         return user_name[0]
 
@@ -400,7 +405,8 @@ class DouyinDownloader:
         # user_data_path == "./download/user_id+user_name"
         # 评论地址 user_data_path/video_id
         # 调用了web_browser的browser对象，是否会有问题？？
-        self.save_user_video_list_data(self.web_browser.browser,video_list,user_data_path)
+        self.save_user_video_list_data(self.web_browser.browser,video_list,user_data_path, method=0)
+        self.save_user_video_list_data(self.web_browser.browser,note_list,user_data_path, method=1)
 
     # Download a group of users, in list format
     def download_user_data(self, input_str_list):
@@ -415,7 +421,7 @@ class DouyinDownloader:
 
     #包括视频信息以及评论
     #还没有确定是否可以兼容note图文的评论爬虫
-    def save_user_video_list_data(self,browser: WebDriver,video_list,file_save_path):
+    def save_user_video_list_data(self,browser: WebDriver,video_list,file_save_path, method):
         # req_url = f"{tik_tok_prefix_url}/search/{keyword}?&type=video"
         # browser.get(req_url)
         # time.sleep(3)
@@ -425,14 +431,19 @@ class DouyinDownloader:
         #     video_list = json.loads(video_list_json)
         #     print(video_list)
         
-        for video_url in video_list:
-            video_id = spider_util.get_video_id_from_url(video_url)
+        for video_id in video_list:
+            if method == 0:
+                video_url = "https://www.douyin.com/video/{0}".format(video_id)
+            else:
+                video_url = "https://www.douyin.com/note/{0}".format(video_id)
+            print(video_url)
+            video_id = spider_util.get_video_id_from_url(video_url, method)
             video_meta_file_path = f"{file_save_path}/{video_id}/metadata.json"
             video_comment_file_path = f"{file_save_path}/{video_id}/comment_list.json"
             if os.path.exists(video_meta_file_path) and os.path.exists(video_comment_file_path):
                 print(f"视频:{video_id}已处理")
             else:
-                self.save_single_work(browser, video_id, file_save_path)
+                self.save_single_work(browser, video_id, file_save_path, method)
                 
     #通过list_json保存搜索到视频的meta
     def save_searched_video_list_data(self,browser: WebDriver, keyword: str):
@@ -454,9 +465,12 @@ class DouyinDownloader:
                 self.save_single_work(browser, video_id)
 
 
-    def save_single_work(self,browser: WebDriver, video_id: str,file_save_path="./spider/work"):
+    def save_single_work(self,browser: WebDriver, video_id: str,file_save_path="./spider/work", method=0):
         print(f"开始存储视频:{video_id}")
-        req_url = f"{self.tik_tok_prefix_url}/video/{video_id}"
+        if method == 0:
+            req_url = f"{self.tik_tok_prefix_url}/video/{video_id}"
+        else:
+            req_url = f"{self.tik_tok_prefix_url}/note/{video_id}"
 
         # 打开新窗口
         # body = browser.find_element_by_tag_name("body")
@@ -468,8 +482,11 @@ class DouyinDownloader:
         # 切换窗口,无用处
         # windows = browser.window_handles
         # browser.switch_to.window(windows[-1])
-
-        video_meta = self.save_video_meta_data(browser, video_id, file_save_path)
+        if method == 0:
+            video_meta = self.save_video_meta_data(browser, video_id, file_save_path)
+        else:
+            video_meta = self.save_note_meta_data(browser, video_id, file_save_path)
+            
         comment_num_str = video_meta["comment_num"]
         comment_num = spider_util.str_to_int(comment_num_str)
         if comment_num > 100:
@@ -478,9 +495,12 @@ class DouyinDownloader:
         #关闭浏览页面
         body = browser.find_element(By.TAG_NAME,"body")
         body.send_keys(Keys.CONTROL + 'w')
-
-
+        
+    
+        
+        
     def save_video_meta_data(self,browser: WebDriver, video_id: str,file_save_path):
+        
         req_url = f"{self.tik_tok_prefix_url}/video/{video_id}"
         video_meta_data = {}
         video_meta_data["id"] = video_id
@@ -586,7 +606,11 @@ class DouyinDownloader:
             i = i + 1
 
         html = spider_util.get_lxml_etree(browser)
-        comment_divs = browser.find_element(By.XPATH, '//*[@id="root"]/div/div[2]/div/div/div[1]/div[5]/div/div/div[3]')
+        
+        
+        # comment_divs = browser.find_element(By.XPATH, '//*[@id="root"]/div/div[2]/div/div/div[1]/div[5]/div/div/div[3]')
+        comment_divs = browser.find_element(By.XPATH, '//div[@data-e2e="comment-list"]')
+
         #意义是什么
         browser.execute_script("arguments[0].scrollIntoView();", comment_divs)
         list = comment_divs.find_elements(By.XPATH,com_item_reg)
@@ -605,3 +629,89 @@ class DouyinDownloader:
         with open(f"{file_path}/{file_name}", 'w', encoding='UTF-8') as file:
             file.write(json.dumps(comment_list, indent=3, ensure_ascii=False))
             file.close()
+            
+        
+    def save_note_meta_data(self,browser: WebDriver, video_id: str,file_save_path):#,file_save_path
+            
+        req_url = f"{self.tik_tok_prefix_url}/note/{video_id}"
+        browser.get(req_url)
+        video_meta_data = {}
+        video_meta_data["id"] = video_id
+        video_meta_data["url"] = req_url
+        title_reg="//head//meta[@name='description']"
+        page_source1 = browser.page_source
+        soup_data = str(BeautifulSoup(page_source1.replace('&nbsp',' '), 'html.parser'))
+        note_metas_regex = r'<span class="ccH7ZaBs">(.*?)</span>'
+        note_metas = re.findall(note_metas_regex, soup_data)
+    
+        title=browser.find_element(By.XPATH,title_reg).get_attribute("content")
+        if title is None:
+            print("title is None")
+        else:
+            print(f'标题: {title}') 
+        video_meta_data["title"] = title
+        
+        # favorite_num = browser.find_element(By.XPATH,
+        #                                     '//*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div[2]/div[1]/div[1]/span').text
+        favorite_num = note_metas[0]
+        if favorite_num is None:
+            print("favorite_num is None")
+        else:
+            print(f"获赞: {favorite_num}")
+        video_meta_data["favorite_num"] = favorite_num
+
+        # comment_num = browser.find_element(By.XPATH,
+        #                                    '//*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div[2]/div[1]/div[2]/span').text
+        comment_num = note_metas[1]
+        if comment_num is None:
+            print("comNum is None")
+        else:
+            print(f"评论: {comment_num}")
+        video_meta_data["comment_num"] = comment_num
+
+        # collect_num = browser.find_element(By.XPATH,
+        #                                    '//*[@id="root"]/div/div[2]/div/div/div[1]/div[3]/div/div[2]/div[1]/div[3]/span').text
+        collect_num = note_metas[2]
+        if collect_num is None:
+            print("col_num is None")
+        else:
+            print(f"收藏: {collect_num}")
+        video_meta_data["collect_num"] = collect_num
+        # soup_data = soup_data.replace(' ','')
+        release_time = browser.find_element(By.XPATH,
+                                        '//div[@class="ElSNZcuB"]//span[@class="giPD3AqJ"]').text
+        release_time = release_time[5:]
+        print(f"发布时间: {release_time}")
+        video_meta_data["release_time"] = release_time
+        author_info = {}
+        video_meta_data["author_info"] = author_info
+        author_name = browser.find_element(By.XPATH,
+                                        '//div[@class="CjPRy13J"]/a/div/span/span/span/span/span/span').text
+        print(f"作者: {author_name}")
+        author_info["name"] = author_name
+
+        author_main_page = browser.find_element(By.XPATH,
+                                                '//div[@class="CjPRy13J"]/a').get_attribute(
+            "href")
+        print(f"作者主页: {author_main_page}")
+        author_info["main_page"] = author_main_page
+
+        author_follower_num = browser.find_element(By.XPATH,
+                                                '//p[@class="yibO9njB"]/span[2]').text
+        print(f"作者粉丝: {author_follower_num}")
+        author_info["follower_num"] = author_follower_num
+
+        author_praise_num = browser.find_element(By.XPATH,
+                                                '//p[@class="yibO9njB"]/span[4]').text
+        print(f"作者获赞: {author_praise_num}")
+        author_info["praise_num"] = author_praise_num
+
+        file_path = f"{file_save_path}/{video_id}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+        file_name = 'metadata.json'
+
+        with open(f"{file_path}/{file_name}", 'w', encoding='UTF-8') as file:
+            file.write(json.dumps(video_meta_data, indent=3, ensure_ascii=False))
+            file.close()
+        return video_meta_data

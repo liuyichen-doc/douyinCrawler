@@ -9,7 +9,7 @@ from lxml import etree
 
 
 video_regex = r"^https://www.douyin.com/video/(.*)(\?.*)?$"
-
+note_regex = r"^https://www.douyin.com/note/(.*)(\?.*)?$"
 
 def dy_login(browser: WebDriver):
     print("开始登录")
@@ -64,8 +64,11 @@ def str_to_int(num_str:str):
     else:
         return float(num_str)
 
-def get_video_id_from_url(video_url: str):
-    matcher = re.match(video_regex, video_url)
+def get_video_id_from_url(video_url: str, method):
+    if method == 0:
+        matcher = re.match(video_regex, video_url)
+    else:
+        matcher = re.match(note_regex, video_url)
     return matcher.group(1)
 
 def fake_human_scroll(browser:WebDriver, max_scroll):
@@ -178,7 +181,7 @@ def get_comment_info_by_lxml(root, index):
     comment_list = []
     comment_info = {}
 
-    comment_obj_list = root.xpath(f'//*[@id="root"]/div/div[2]/div/div/div[1]/div[5]/div/div/div[3]/div')
+    comment_obj_list = root.xpath(f'//div[@data-e2e="comment-list"]/div')
     # print(len(comment_obj_list))
     if comment_obj_list is None or len(comment_obj_list) == 0:
         print(f"未发现评论或者评论加载出错")
