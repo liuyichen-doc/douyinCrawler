@@ -208,9 +208,18 @@ def get_comment_info_by_lxml(root):
             for cur_com in comment_comimg_list:
                 #假设是<text>
                 cur = cur_com.text
-                if cur is None:
-                    cur = '<' + cur_com.xpath("./@src")[0] + '>'
-                    print(cur)
+                if cur is None or len(cur) == 0:
+                    sub_cur = cur_com.xpath("./@src")
+                    # print(sub_cur)
+                    if sub_cur is not None and len(sub_cur) != 0:
+                        cur = '<' + sub_cur[0] + '>'
+                    else:
+                        sub_cur = cur_com.xpath("./img/@src")
+                        if sub_cur is not None and len(sub_cur) != 0:
+                            cur = '<' + sub_cur[0] + '>'
+                        else:
+                            print("可能图像的xpath依然有例外")
+                print(cur)
                 comment_info["comment_text"] = comment_info["comment_text"]  + cur
         if external_imgs is not None and len(external_imgs) != 0:
             for imgs in external_imgs:
@@ -328,9 +337,18 @@ def get_comment_info_by_lxml(root):
                 for cur_com in sub_detail:
                     #假设是<text>
                     cur = cur_com.text
-                    if cur is None:
-                        cur = '<' + cur_com.xpath("./@src")[0] + '>'
-                        print(cur)
+                    if cur is None or len(cur) == 0:
+                        sub_cur = cur_com.xpath("./@src")
+                        # print(sub_cur)
+                        if sub_cur is not None and len(sub_cur) != 0:
+                            cur = '<' + sub_cur[0] + '>'
+                        else:
+                            sub_cur = cur_com.xpath("./img/@src")
+                            if sub_cur is not None and len(sub_cur) != 0:
+                                cur = '<' + sub_cur[0] + '>'
+                            else:
+                                print("可能图像的xpath依然有例外")
+                    print(cur)
                     sub_comment_info["comment_text"] = sub_comment_info["comment_text"]  + cur
                     
             sub_comment_info["comment_id"] = rise_id

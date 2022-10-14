@@ -1,7 +1,7 @@
 # Batch download tools for Douyin videos and pictures
 # @author  palm.wang@hotmail.com
 # version 1.0, 2022.09.28 : basic user video and picture download function
-
+from lxml.html import tostring
 import random
 import time
 import re
@@ -45,6 +45,8 @@ class WebBrowser:
     def get_main_page_source(self, url):
         try:
             self.browser.get(url)
+            # self.browser.refresh()
+            time.sleep(2)
             return self.browser.page_source
         except Exception as e:
             print('Unable to open url: %s', url)
@@ -170,22 +172,20 @@ class DouyinDownloader:
         video_list = re.findall(video_strs_pattern1, str_data)
         print('video_list1: ', video_list)
     #如果用户没有发表视频，寻找页面最后的推送视频，并不属于该特定用户
-    #查看video_list2究竟是什么
+        # if len(video_list) == 0:
+        #     video_strs_pattern2 = r'<a href="//www.douyin.com/video/(.*?)"'
+        #     video_list = re.findall(video_strs_pattern2, str_data)
+        #     print('video_list2: ', video_list)
+        
+        ##
         if len(video_list) == 0:
+            VIDEO_STRS_REGEX = r"//div[@data-e2e='user-post-list']"
+            origin = spider_util.get_lxml_etree(self.web_browser.browser)
+            post_lists = origin.xpath(VIDEO_STRS_REGEX)[0]
+            str_data = tostring(post_lists, encoding="utf-8").decode("utf-8")
             video_strs_pattern2 = r'<a href="//www.douyin.com/video/(.*?)"'
             video_list = re.findall(video_strs_pattern2, str_data)
             print('video_list2: ', video_list)
-
-        ##
-        # VIDEO_STRS_REGEX = r"//div[@data-e2e='user-post-list']/ul/li/a"
-        # origin = spider_util.get_lxml_etree(self.web_browser.browser)
-        # post_lists = origin.xpath(VIDEO_STRS_REGEX)
-        # print(len(post_lists))
-        # for item in post_lists:
-        #     url = item.xpath("./@href")
-        #     video_list.append(re.find)
-        # for post in post_lists:
-        #     li_item = post.xpath("./a/@href")
 
         return video_list
 
@@ -219,7 +219,7 @@ class DouyinDownloader:
             # print(soup_data)
             print('parse notes in video page...')
             user_data_path = './{0}/{1}'.format(self.data_path, user_id)
-            self.download_note_in_video_page(soup_data, user_data_path, video_id)
+            self.download_note_in_video_page(user_data_path, video_id)
             return '', ''
         real_video_url = 'https://www.douyin.com/aweme/v1/play/' + real_video_url_str[0]
         # find the video title
@@ -235,9 +235,12 @@ class DouyinDownloader:
         # print('video title: %s', video_title_str)
         return real_video_url, video_title_str.get_attribute("content") 
 
-    def download_note_in_video_page(self, soup_data, user_data_path, video_id):
+    def download_note_in_video_page(self, user_data_path, video_id):
+        note_url = "https://www.douyin.com/note/{0}".format(video_id)
+        print('noteUrl',note_url)
+        page_source1 = self.web_browser.get_main_page_source(note_url)
+        soup_data = str(BeautifulSoup(page_source1.replace('&nbsp',' '), 'html.parser'))
         real_note_url_pattern = r'<img class="V5BLJkWV" src="(.*?)"'
-        
         real_note_url_strs = re.findall(real_note_url_pattern, soup_data)
         real_note_urls = []
         print(real_note_url_strs)
@@ -247,7 +250,14 @@ class DouyinDownloader:
         print('real_note_urls in video page: ', real_note_urls)
         for j in range(len(real_note_urls)):
             file_name = "{0}/{1}_{2}.webp".format(user_data_path, video_id, j)
-            self.download_image(real_note_urls[j], file_name)
+            if os.path.isfile(file_name):
+                # # Ignore the file if the file exist
+                print("%s was downloaded ok\n" % file_name)
+                return True
+            print(j,"------>>>",real_note_urls[j])
+            response = requests.get(url=real_note_urls[j], stream=True)
+            with open(file_name, 'wb') as f:
+                f.write(response.content)
             time.sleep(random.random() * 1)
 
     # Get the real notes url from note page
@@ -311,12 +321,13 @@ class DouyinDownloader:
         print('video_num:',video_num)
         # video_num = 1  # For test ...
         for i in range(video_num):
-            #如何寻找title 存在问题 已经解决
+            #寻找title 存在问题 已经解决
             video_url, video_title = self.get_real_video_url_from_videopage(video_list[i], user_id)
             # file_name = "{0}/{1}.mp4".format(user_data_path, video_list[i])
             file_name = "{0}/{1}.mp4".format(user_data_path, '{0}_{1}'.format(video_list[i], video_title))
-            self.download_video_stream(video_url, file_name)
-            time.sleep(random.random()*3)
+            if video_url !='' or video_title !='':
+                self.download_video_stream(video_url, file_name)
+                time.sleep(random.random()*3)
 
     # Download one webp image
     #下载真实图像
@@ -396,7 +407,6 @@ class DouyinDownloader:
         # Open the user url web page
         self.web_browser.get_main_page_source(user_url)
         # Click on the 'x' of the account dy-account window
-        time.sleep(2)
         self.web_browser.close_nonsense_window_by_class('dy-account-close')
         # roll the page to the end to loading the full page
         page_source = self.web_browser.get_full_page_source()
@@ -603,7 +613,7 @@ class DouyinDownloader:
             print(f"第{i}次滚动")
             browser.execute_script('scroll(0,document.body.scrollHeight)')
             #模拟人的滚动
-            spider_util.fake_human_scroll(browser,800)
+            # spider_util.fake_human_scroll(browser,800)
             tree = spider_util.get_lxml_etree(browser)
             #查看结束标志
             end_mark1 = tree.xpath('//*[@class="BbQpYS5o HO1_ywVX"]')
